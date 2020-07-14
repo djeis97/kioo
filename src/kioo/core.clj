@@ -1,10 +1,10 @@
 (ns kioo.core
   (:refer-clojure :exclude [compile])
   (:require
-    [kioo.util :refer [convert-attrs flatten-nodes]]
-    [net.cgrand.enlive-html :refer [at html-resource select
-                                    any-node pred]]
-    [kioo.html-parser :as parser]))
+   [kioo.util :refer [convert-attrs flatten-nodes]]
+   [net.cgrand.enlive-html :refer [at html-resource select
+                                   any-node pred]]
+   [kioo.html-parser :as parser]))
 
 (declare compile component*)
 
@@ -13,30 +13,25 @@
 ;; BASE REACT EMIT FUNCTIONS
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn get-react-sym [tag]
-  (symbol "react-dom-factories" (name tag)))
 
 (defn emit-trans [node children]
   `((kioo.core/handle-wrapper kioo.core/make-dom)
-     (~(:trans node) ~(-> node
-                          (dissoc :trans)
-                          (assoc :attrs (convert-attrs (:attrs node))
-                                 :content children
-                                 :sym (get-react-sym (:tag node)))))))
+    (~(:trans node) ~(-> node
+                         (dissoc :trans)
+                         (assoc :attrs (convert-attrs (:attrs node))
+                                :content children)))))
 
 (defn emit-node [node children]
-  `(apply ~(get-react-sym (:tag node))
-          (cljs.core/clj->js ~(convert-attrs (:attrs node)))
-          (kioo.util/flatten-nodes ~children)))
-
+  `(cljs.core/apply js/React.createElement
+                    ~(name (:tag node))
+                    (cljs.core/clj->js ~(convert-attrs (:attrs node)))
+                    (kioo.util/flatten-nodes ~children)))
 
 (defn wrap-fragment [tag child-sym]
-  `(apply ~(get-react-sym tag) nil ~child-sym))
-
+  `(apply js/React.createElement ~(name tag) nil ~child-sym))
 
 (def resource-wrapper-fns {:html parser/->StandardHtml
                            :mini-html parser/->MiniHtml})
-
 
 (def react-emit-opts {:emit-trans emit-trans
                       :emit-node emit-node
@@ -86,7 +81,6 @@
                                           (~trans))))
       (assoc node :trans trans))))
 
-
 (defn resolve-sel-var [sym]
   (let [v (get @custom-selectors sym
                (ns-resolve 'net.cgrand.enlive-html sym))]
@@ -94,27 +88,26 @@
 
 (defn eval-selector [sel]
   (reduce
-    (fn [sel-acc sel-frag]
-      (conj sel-acc
-            (cond
-              (list? sel-frag) (apply (resolve-sel-var (first sel-frag)) (eval-selector (rest sel-frag)))
-              (or (vector? sel-frag)
-                  (map? sel-frag)
-                  (set? sel-frag)) (eval-selector sel-frag)
-              (symbol? sel-frag) (resolve-sel-var sel-frag)
-              :else sel-frag)))
-    (cond
-      (vector? sel) []
-      (set? sel) #{}
-      (map? sel) {}
-      :else []) sel))
+   (fn [sel-acc sel-frag]
+     (conj sel-acc
+           (cond
+             (list? sel-frag) (apply (resolve-sel-var (first sel-frag)) (eval-selector (rest sel-frag)))
+             (or (vector? sel-frag)
+                 (map? sel-frag)
+                 (set? sel-frag)) (eval-selector sel-frag)
+             (symbol? sel-frag) (resolve-sel-var sel-frag)
+             :else sel-frag)))
+   (cond
+     (vector? sel) []
+     (set? sel) #{}
+     (map? sel) {}
+     :else []) sel))
 
 (defn map-trans [node trans-lst]
   (reduce (fn [node [sel trans]]
             (at node (eval-selector sel) (attach-transform trans)))
           node
           trans-lst))
-
 
 (defn resolve-resource-fn [resource {wrapper :resource-wrapper}]
   (cond
@@ -170,7 +163,6 @@
           (first ~child-sym)
           ~((:wrap-fragment emit-opts) :span child-sym))))))
 
-
 (defn compile-node
   "Emits the compiled structure for a single node & its children"
   [node emit-opts]
@@ -180,7 +172,6 @@
                  (:emit-trans emit-opts)
                  (:emit-node emit-opts))]
       (emit node children))))
-
 
 (defn compile
   "Emits the compiled structure for a list of nodes"
@@ -211,8 +202,8 @@
   ([path sel trans args emit-opts check-val?]
    (if check-val?
      `(kioo.core/value-component
-        (fn ~args
-          ~(component* path sel trans emit-opts)))
+       (fn ~args
+         ~(component* path sel trans emit-opts)))
      `(fn ~args
         ~(component* path sel trans emit-opts)))))
 
@@ -256,5 +247,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;supress-whitespace is no longer needed anymore because of the use of enlive-ws
+
+
 (def supress-whitespace {:resource-wrapper :mini-html})
 (def include-whitespace {:resource-wrapper :html})

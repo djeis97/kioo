@@ -1,8 +1,7 @@
 (ns kioo.om
   (:require
-    [kioo.core :as core]
-    [kioo.util :refer [flatten-nodes convert-attrs]]
-    [react-dom-factories]))
+   [kioo.core :as core]
+   [kioo.util :refer [flatten-nodes convert-attrs]]))
 
 (defn make-dom [node & body]
   (if (map? node)
@@ -40,7 +39,7 @@
 (defn wrap [tag attrs]
   (fn [node]
     {:tag tag
-     :sym (aget react-dom-factories (name tag))
+     :sym (symbol "om.dom" (name tag))
      :attrs (convert-attrs attrs)
      :content [(make-dom node)]}))
 

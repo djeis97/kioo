@@ -5,32 +5,31 @@
             [sablono.core :as sab :include-macros true]
             [kioo.common :as common]
             [cljsjs.react]
-            [cljsjs.create-react-class]
-            [react-dom-factories]))
+            [cljsjs.create-react-class]))
 
 (defn value-component [renderer]
   (let [react-component
         (js/createReactClass
-          #js {:shouldComponentUpdate
-               (fn [next-props _]
-                 (this-as this
-                   (not= (aget (.-props this) "value")
-                         (aget next-props "value"))))
-               :render
-               (fn []
-                 (this-as this
-                   (binding [*component* this]
-                     (apply renderer
-                            (aget (.-props this) "value")
-                            (aget (.-props this) "statics")))))})
+         #js {:shouldComponentUpdate
+              (fn [next-props _]
+                (this-as this
+                  (not= (aget (.-props this) "value")
+                        (aget next-props "value"))))
+              :render
+              (fn []
+                (this-as this
+                  (binding [*component* this]
+                    (apply renderer
+                           (aget (.-props this) "value")
+                           (aget (.-props this) "statics")))))})
         factory (js/React.createFactory react-component)]
     (fn [value & static-args]
       (factory #js {:value value :statics static-args}))))
 
-
 (defn make-dom [node]
   (if (map? node)
-    (apply (:sym node)
+    (apply js/React.createElement
+           (name (:tag node))
            (clj->js (:attrs node))
            (flatten-nodes (:content node)))
     node))
@@ -56,7 +55,6 @@
       (if (empty? body)
         rnode
         (cons rnode (to-list (apply hw body)))))))
-
 
 (def content common/content)
 (def append common/append)
@@ -87,7 +85,6 @@
 (defn wrap [tag attrs]
   (fn [node]
     {:tag tag
-     :sym (aget react-dom-factories (name tag))
      :attrs (convert-attrs attrs)
      :content [(make-dom node)]}))
 
@@ -113,8 +110,8 @@
                               [r (assoc s k v)])) [] pairs)]
     (fn [node]
       (assoc node
-        :attrs (merge (:attrs node) sev)
-        :events (merge (:events node) rev)))))
+             :attrs (merge (:attrs node) sev)
+             :events (merge (:events node) rev)))))
 
 (def lifecycle-events #{"initState" "defaultProps"
                         "shouldUpdate" "willUpdate" "didUpdate"
@@ -136,9 +133,9 @@
   [events-fns]
   (fn [node]
     (assoc node
-      :events (merge (:events node)
-                     (into {} (for [[k v] events-fns]
-                                [(camel-case k) v]))))))
+           :events (merge (:events node)
+                          (into {} (for [[k v] events-fns]
+                                     [(camel-case k) v]))))))
 
 (defn render [component node]
   (.render js/React component node))
